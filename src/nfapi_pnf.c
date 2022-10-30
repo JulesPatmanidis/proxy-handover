@@ -3746,6 +3746,13 @@ static void oai_slot_aggregate_srs_ind(slot_msgs_t *msgs)
     free(agg.pdu_list); // Should actually be nfapi_vnf_p7_release_msg
 }
 
+/**
+ * @brief Sends all messages in msgs to the EnB
+ * 
+ * @param id The ID of the PNF
+ * @param msg_id The ID of the messages
+ * @param msgs A list of messages with the same ID
+ */
 static void oai_subframe_aggregate_message_id(int id, uint16_t msg_id, subframe_msgs_t *msgs)
 {
     assert(msgs->num_msgs > 0);
@@ -3783,6 +3790,13 @@ static void oai_subframe_aggregate_message_id(int id, uint16_t msg_id, subframe_
 /*
     subframe_msgs is a pointer to an array of num_ues
 */
+
+/**
+ * @brief Groups all the messages received from each UE by their ID, and sends them to the EnB
+ * 
+ * @param id The id of the PNF
+ * @param subframe_msgs A struct that holds the messages received per UE during the current sfn_sf
+ */
 static void oai_subframe_aggregate_messages(int id, subframe_msgs_t *subframe_msgs)
 {
     for (;;)
@@ -3802,12 +3816,12 @@ static void oai_subframe_aggregate_messages(int id, subframe_msgs_t *subframe_ms
                 }
                 assert(msg->magic == MESSAGE_BUFFER_MAGIC);
 
-                uint16_t id = get_message_id(msg);
+                uint16_t message_id = get_message_id(msg);
                 if (found_msg_id == 0)
                 {
-                    found_msg_id = id;
+                    found_msg_id = message_id;
                 }
-                if (found_msg_id == id)
+                if (found_msg_id == message_id)
                 {
                     subframe_msgs[i].msgs[j] = NULL;
                     if (msgs_by_id.num_msgs == MAX_SUBFRAME_MSGS)
@@ -3817,7 +3831,7 @@ static void oai_subframe_aggregate_messages(int id, subframe_msgs_t *subframe_ms
                         free(msg);
                         continue;
                     }
-                    msgs_by_id.msgs[msgs_by_id.num_msgs++] = msg;
+                    msgs_by_id.msgs[msgs_by_id.num_msgs++] = msg; // append to msgs_by_id.msgs
                 }
             }
         }
@@ -3825,7 +3839,7 @@ static void oai_subframe_aggregate_messages(int id, subframe_msgs_t *subframe_ms
         {
             break;
         }
-        oai_subframe_aggregate_message_id(id, found_msg_id, &msgs_by_id);
+        oai_subframe_aggregate_message_id(id, found_msg_id, &msgs_by_id); // Send to EnB
 
         for (int k = 0; k < msgs_by_id.num_msgs; k++)
         {
@@ -4015,10 +4029,19 @@ static void oai_slot_aggregate_messages(slot_msgs_t *slot_msgs)
 //     }
 // }
 
+/**
+ * @brief Dequeue all messages from the UE queues of the given EnB ID and save them to *subframe_msgs if they have the current sfn_sf
+ * 
+ * @param enb_id The ID of the EnB
+ * @param subframe_msgs The 2d list where the messages will be saved
+ * @param sfn_sf_tx The current sfn_sf
+ * @return true if the queues got emptied, false otherwise
+ */
 bool dequeue_ue_msgs(int enb_id, subframe_msgs_t *subframe_msgs, uint16_t sfn_sf_tx)
 {
     // Dequeue for all UE responses, and discard any with the wrong sfn/sf value.
     // There might be multiple messages from a given UE with the same sfn/sf value.
+
     bool are_queues_empty = true;
     uint16_t master_sfn_sf = 0xFFFF;
     for (int i = 0; i < num_ues; i++)
@@ -4230,11 +4253,17 @@ static uint16_t sfn_slot_counter(uint16_t *sfn, uint16_t *slot)
                          } while (0)
 
 uint16_t sf_slot_tick;
-uint16_t sf0_sf1_tick;
+uint16_t sf0_sf1_tick; // Keeps track if both EnBs have sent their messages
 pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t cond_sf_slot = PTHREAD_COND_INITIALIZER;
 pthread_cond_t cond_sf0_sf1 = PTHREAD_COND_INITIALIZER;
 
+/**
+ * @brief Aggregates and sends messages from the UEs to the EnBs on every subframe and makes sure the PNFs are synchronised after sending.
+ * 
+ * @param context Contains the softmodem_mode and the ID of the PNF
+ * @return void* 
+ */
 void *oai_subframe_task(void *context)
 {
     pnf_set_thread_priority(79);
@@ -4248,8 +4277,7 @@ void *oai_subframe_task(void *context)
     while (true)
     {
 
-        uint16_t sfn_sf_tx = sfn_sf_counter(&sfn, &sf);
-
+        uint16_t sfn_sf_tx = sfn_sf_counter(&sfn, &sf); // current sfn_sf
         uint64_t iteration_start = clock_usec();
 
         transfer_downstream_sfn_sf_to_proxy(id, sfn_sf_tx); // send to oai UE
@@ -4268,6 +4296,7 @@ void *oai_subframe_task(void *context)
         /*
             Dequeue, collect and aggregate the messages with the same message ID.
         */
+
         subframe_msgs_t subframe_msgs[MAX_UES];
         memset(subframe_msgs, 0, sizeof(subframe_msgs));
         are_queues_empty = dequeue_ue_msgs(id, subframe_msgs, sfn_sf_tx);
@@ -4409,6 +4438,14 @@ void *oai_slot_task(void *context)
     }
 }
 
+/**
+ * @brief Sets the sfn_sf of the received message and puts it in the queue of the corresponding UE
+ * 
+ * @param enb_id The ID of the EnB this message should go to
+ * @param msg The message received
+ * @param len The length of the message
+ * @param nem_id ue_idx + 2. TODO: find out why
+ */
 void oai_subframe_handle_msg_from_ue(uint16_t enb_id, const void *msg, size_t len, uint16_t nem_id)
 {
     if (len == 4) // Dummy packet ignore

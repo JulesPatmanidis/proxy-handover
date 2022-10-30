@@ -28,25 +28,6 @@ namespace
     Multi_UE_Proxy *instance;
 }
 
-Multi_UE_Proxy::Multi_UE_Proxy(int num_of_ues, std::vector<std::string> enb_ips, std::string proxy_ip, std::string ue_ip)
-{
-    assert(instance == NULL);
-    instance = this;
-    for (int ue_idx = 0; ue_idx < num_of_ues; ue_idx++)
-    {
-        eNB_id[ue_idx] = 0;
-    }
-
-    num_ues = num_of_ues ;
-    int num_of_enbs = enb_ips.size();
-
-    for (int i = 0; i < num_of_enbs; i++)
-    {
-        lte_pnfs.push_back(Multi_UE_PNF(i, num_of_ues, enb_ips[i], proxy_ip));
-    }
-    configure(ue_ip);
-}
-
 Multi_UE_PNF::Multi_UE_PNF(int pnf_id, int num_of_ues, std::string enb_ip, std::string proxy_ip)
 {
     num_ues = num_of_ues ;
@@ -82,6 +63,38 @@ void Multi_UE_PNF::start(softmodem_mode_t softmodem_mode)
     }
 }
 
+Multi_UE_Proxy::Multi_UE_Proxy(int num_of_ues, std::vector<std::string> enb_ips, std::string proxy_ip, std::string ue_ip)
+{
+    assert(instance == NULL);
+    instance = this;
+    for (int ue_idx = 0; ue_idx < num_of_ues; ue_idx++)
+    {
+        eNB_id[ue_idx] = 0;
+    }
+
+    num_ues = num_of_ues;
+    int num_of_enbs = enb_ips.size();
+
+    for (int i = 0; i < num_of_enbs; i++)
+    {
+        lte_pnfs.push_back(Multi_UE_PNF(i, num_of_ues, enb_ips[i], proxy_ip));
+    }
+    configure(ue_ip);
+}
+
+void Multi_UE_Proxy::configure(std::string ue_ip)
+{
+    oai_ue_ipaddr = ue_ip;
+    std::cout << "OAI-UE is on IP Address " << oai_ue_ipaddr << std::endl;
+
+    for (int ue_idx = 0; ue_idx < num_ues; ue_idx++)
+    {
+        int oai_rx_ue_port = 3211 + ue_idx * port_delta;
+        int oai_tx_ue_port = 3212 + ue_idx * port_delta;
+        init_oai_socket(oai_ue_ipaddr.c_str(), oai_tx_ue_port, oai_rx_ue_port, ue_idx);
+    }
+}
+
 void Multi_UE_Proxy::start(softmodem_mode_t softmodem_mode)
 {
     int num_lte_pnfs = lte_pnfs.size();
@@ -105,19 +118,15 @@ void Multi_UE_Proxy::start(softmodem_mode_t softmodem_mode)
     }
 }
 
-void Multi_UE_Proxy::configure(std::string ue_ip)
-{
-    oai_ue_ipaddr = ue_ip;
-    std::cout<<"OAI-UE is on IP Address "<<oai_ue_ipaddr<<std::endl;
-
-    for (int ue_idx = 0; ue_idx < num_ues; ue_idx++)
-    {
-        int oai_rx_ue_port = 3211 + ue_idx * port_delta;
-        int oai_tx_ue_port = 3212 + ue_idx * port_delta;
-        init_oai_socket(oai_ue_ipaddr.c_str(), oai_tx_ue_port, oai_rx_ue_port, ue_idx);
-    }
-}
-
+/**
+ * @brief Setup Rx/Tx sockets for communication with the given UE
+ * 
+ * @param addr The ip of the oai UE
+ * @param tx_port The receive port
+ * @param rx_port The transmit port
+ * @param ue_idx The index of the UE
+ * @return 0 for successful setup, -1 if errors occured
+ */
 int Multi_UE_Proxy::init_oai_socket(const char *addr, int tx_port, int rx_port, int ue_idx)
 {
     {   //Setup Rx Socket
@@ -170,6 +179,11 @@ int Multi_UE_Proxy::init_oai_socket(const char *addr, int tx_port, int rx_port, 
     return 0;
 }
 
+/**
+ * @brief Listens to the port of the given UE for messages and calls the handler funtion
+ * 
+ * @param ue_idx The index of the UE
+ */
 void Multi_UE_Proxy::receive_message_from_ue(int ue_idx)
 {
     char buffer[NFAPI_MAX_PACKED_MESSAGE_SIZE];
@@ -337,6 +351,13 @@ void transfer_downstream_nfapi_msg_to_proxy(uint16_t id, void *msg)
 {
     instance->oai_enb_downlink_nfapi_task(id, msg);
 }
+
+/**
+ * @brief Sends a downling sfn_sf msg to the UEs
+ * 
+ * @param id EnB ID
+ * @param sfn_sf Current sfn_sf
+ */
 void transfer_downstream_sfn_sf_to_proxy(uint16_t id, uint16_t sfn_sf)
 {
     instance->pack_and_send_downlink_sfn_sf_msg(id, sfn_sf);
