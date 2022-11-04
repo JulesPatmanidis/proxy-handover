@@ -122,22 +122,21 @@ void Multi_UE_Proxy::start(softmodem_mode_t softmodem_mode)
  * @brief Setup Rx/Tx sockets for communication with the given UE
  * 
  * @param addr The ip of the oai UE
- * @param tx_port The transmit port
- * @param rx_port The receive port
+ * @param tx_port The receive port
+ * @param rx_port The transmit port
  * @param ue_idx The index of the UE
  * @return 0 for successful setup, -1 if errors occured
  */
 int Multi_UE_Proxy::init_oai_socket(const char *addr, int tx_port, int rx_port, int ue_idx)
 {
-     {   //Setup Rx Socket
-        printf("Setting up rx socket\n");
+    {   //Setup Rx Socket
         memset(&address_rx_, 0, sizeof(address_rx_));
         address_rx_.sin_family = AF_INET;
         address_rx_.sin_addr.s_addr = INADDR_ANY;
         address_rx_.sin_port = htons(rx_port);
+
         ue_rx_socket_ = socket(address_rx_.sin_family, SOCK_DGRAM, 0);
         ue_rx_socket[ue_idx] = ue_rx_socket_;
-
         if (ue_rx_socket_ < 0)
         {
             NFAPI_TRACE(NFAPI_TRACE_ERROR, "socket: %s", ERR);
@@ -150,7 +149,32 @@ int Multi_UE_Proxy::init_oai_socket(const char *addr, int tx_port, int rx_port, 
             ue_rx_socket_ = -1;
             return -1;
         }
-        printf("ignore this print %s, %d\n", addr, tx_port);
+    }
+    {   //Setup Tx Socket
+        memset(&address_tx_, 0, sizeof(address_tx_));
+        address_tx_.sin_family = AF_INET;
+        address_tx_.sin_port = htons(tx_port);
+
+        if (inet_aton(addr, &address_tx_.sin_addr) == 0)
+        {
+            NFAPI_TRACE(NFAPI_TRACE_ERROR, "addr no good %s", addr);
+            return -1;
+        }
+
+        ue_tx_socket_ = socket(address_tx_.sin_family, SOCK_DGRAM, 0);
+        ue_tx_socket[ue_idx] = ue_tx_socket_;
+        if (ue_tx_socket_ < 0)
+        {
+            NFAPI_TRACE(NFAPI_TRACE_ERROR, "socket: %s", ERR);
+            return -1;
+        }
+
+        if (connect(ue_tx_socket_, (struct sockaddr *)&address_tx_, sizeof(address_tx_)) < 0)
+        {
+          NFAPI_TRACE(NFAPI_TRACE_ERROR, "tx connection failed in init_oai_socket: %s\n", strerror(errno));
+          close(ue_tx_socket_);
+          return -1;
+        }
     }
     return 0;
 }
@@ -162,80 +186,21 @@ int Multi_UE_Proxy::init_oai_socket(const char *addr, int tx_port, int rx_port, 
  */
 void Multi_UE_Proxy::receive_message_from_ue(int ue_idx)
 {
-    // Setup tx socket first
-    {
-        int tmp_sock;
-        int len;
-        struct sockaddr_in ue_discovered_addr;
-        struct sockaddr_in send_bind_addr;
-        socklen_t addr_len = sizeof(ue_discovered_addr);
-        uint8_t buffer[NFAPI_MAX_PACKED_MESSAGE_SIZE];
-
-        printf("Setting up downlink socket\n");
-
-        /* Create tx socket */
-        if ((tmp_sock = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
-        {
-            printf("Error creating downlink socket for UE %d: %s", ue_idx, strerror(errno));
-            return;
-        }
-
-        send_bind_addr.sin_family = AF_INET;
-        send_bind_addr.sin_addr.s_addr = inet_addr(pnf_ipaddr.c_str());
-
-        /* Tx port formula: 3212 + ue_idx * port_delta; */
-        send_bind_addr.sin_port = htons(3212 + ue_idx * port_delta);
-        /* Save the tx socket in the proxy */
-        ue_tx_socket[ue_idx] = tmp_sock;
-        /* Bind */
-        if (bind(tmp_sock, (struct sockaddr *)&send_bind_addr, sizeof(struct sockaddr)) == -1)
-        {
-            printf("Error binding downlink socket for UE %d: %s", ue_idx, strerror(errno));
-            return ;
-        }
-        /* Receive the discovery packet on the tx socket and store the UE address */
-        printf("Waiting for discovery message\n");
-        len = recvfrom(tmp_sock, buffer, sizeof(buffer), 0, (struct sockaddr *)&ue_discovered_addr, &addr_len);
-        if (len == -1)
-        {
-            printf("Recv failure (%d): %s", errno, strerror(errno));
-            return;
-        }
-        printf("Got discovery message!\n");
-        /* Connect socket to the UE address of the packet received (ue_discovered_addr). */
-        if (connect(tmp_sock, (struct sockaddr *)&ue_discovered_addr, addr_len) < 0)
-        {
-            printf("Error connecting downlink socket for UE %d: %s", id, strerror(errno));
-            return;
-        }
-
-        /* Save the tx socket for the ue in the proxy */
-        ue_tx_socket[ue_idx] = tmp_sock;
-    }
-
-    // Receive messages from ues
-    printf("Receive messages from ue: %d\n", ue_idx);
     char buffer[NFAPI_MAX_PACKED_MESSAGE_SIZE];
     socklen_t addr_len = sizeof(address_rx_);
-    int print_count = 0;
+
     while(true)
     {
-        NFAPI_TRACE(NFAPI_TRACE_INFO, "(Proxy) Receive from: ue_idx: %d, address: %s", ue_idx, (sockaddr *)&address_rx_);
         int buflen = recvfrom(ue_rx_socket[ue_idx], buffer, sizeof(buffer), 0, (sockaddr *)&address_rx_, &addr_len);
         if (buflen == -1)
         {
             NFAPI_TRACE(NFAPI_TRACE_ERROR, "Recvfrom failed %s", strerror(errno));
             return ;
         }
-        if (print_count % 1000 == 0) {
-            printf("Got message %d from ue %d\n", print_count, ue_idx);
-        }
-        print_count++;
         if (buflen == 4)
         {
             //NFAPI_TRACE(NFAPI_TRACE_INFO , "Dummy frame");
             continue;
-
         }
         else
         {
@@ -247,8 +212,8 @@ void Multi_UE_Proxy::receive_message_from_ue(int ue_idx)
             }
             uint16_t sfn_sf = nfapi_get_sfnsf(buffer, buflen);
             eNB_id[ue_idx] = header.phy_id;
-            NFAPI_TRACE(NFAPI_TRACE_INFO , "(Proxy) Proxy has received %d uplink message from OAI UE at socket. Frame: %d, Subframe: %d",
-                    header.message_id, NFAPI_SFNSF2SFN(sfn_sf), NFAPI_SFNSF2SF(sfn_sf));
+            NFAPI_TRACE(NFAPI_TRACE_INFO , "(Proxy) Proxy has received %d uplink message from OAI UE for eNB%u at socket. Frame: %d, Subframe: %d",
+                    header.message_id, eNB_id[ue_idx], NFAPI_SFNSF2SFN(sfn_sf), NFAPI_SFNSF2SF(sfn_sf));
         }
         oai_subframe_handle_msg_from_ue(eNB_id[ue_idx], buffer, buflen, ue_idx + 2);
     }
@@ -294,18 +259,70 @@ void Multi_UE_Proxy::oai_enb_downlink_nfapi_task(int id, void *msg_org)
         if (id != eNB_id[ue_idx]) {
             continue;
         }
-        address_tx_.sin_port = htons(3212 + ue_idx * port_delta); // Make that a function argument?
+        address_tx_.sin_port = htons(3212 + ue_idx * port_delta);
+        uint16_t id_=1;
+        switch (msg.header.message_id)
+        {
 
-	    if (ue_tx_socket[ue_idx] < 2)
-	    {
-	    printf("Ue tx socket not initialized yet");
-	        continue;
-	    }
-	    //printf("Sending to ue %d\n", ue_idx);
-	    if (send(ue_tx_socket[ue_idx], buffer, encoded_size, 0) < 0)
-	    {
-	        printf("error sending message to ue");
-	    }
+        case NFAPI_DL_CONFIG_REQUEST:
+        {
+            int dl_sfn = NFAPI_SFNSF2SFN(msg.dl_config_req.sfn_sf);
+            int dl_sf = NFAPI_SFNSF2SF(msg.dl_config_req.sfn_sf);
+            uint16_t dl_numPDU = msg.dl_config_req.dl_config_request_body.number_pdu;
+            NFAPI_TRACE(NFAPI_TRACE_INFO , "(UE) Prior to sending dl_config_req to OAI UE. Frame: %d,"
+                       " Subframe: %d, Number of PDUs: %u",
+                       dl_sfn, dl_sf, dl_numPDU);
+            assert(ue_tx_socket[ue_idx] > 2);
+            if (sendto(ue_tx_socket[ue_idx], buffer, encoded_size, 0, (const struct sockaddr *) &address_tx_, sizeof(address_tx_)) < 0)
+            {
+                NFAPI_TRACE(NFAPI_TRACE_ERROR, "Send NFAPI_DL_CONFIG_REQUEST to OAI UE failed");
+            }
+            else
+            {
+                NFAPI_TRACE(NFAPI_TRACE_INFO , "DL_CONFIG_REQ forwarded to UE from UE NEM: %u of cell id %d", id_, id);
+            }
+            break;
+        }
+        case NFAPI_TX_REQUEST:
+            assert(ue_tx_socket[ue_idx] > 2);
+            if (sendto(ue_tx_socket[ue_idx], buffer, encoded_size, 0, (const struct sockaddr *) &address_tx_, sizeof(address_tx_)) < 0)
+            {
+                NFAPI_TRACE(NFAPI_TRACE_ERROR, "Send NFAPI_TX_CONFIG_REQUEST to OAI UE failed");
+            }
+            else
+            {
+                NFAPI_TRACE(NFAPI_TRACE_INFO , "TX_REQ forwarded to UE from UE NEM: %u of cell id %d", id_, id);
+            }
+            break;
+
+        case NFAPI_UL_CONFIG_REQUEST:
+            assert(ue_tx_socket[ue_idx] > 2);
+            if (sendto(ue_tx_socket[ue_idx], buffer, encoded_size, 0, (const struct sockaddr *) &address_tx_, sizeof(address_tx_)) < 0)
+            {
+                NFAPI_TRACE(NFAPI_TRACE_ERROR, "Send NFAPI_UL_CONFIG_REQUEST to OAI UE failed");
+            }
+            else
+            {
+                NFAPI_TRACE(NFAPI_TRACE_INFO , "UL_CONFIG_REQ forwarded to UE from UE NEM: %u of cell id %d", id_, id);
+            }
+            break;
+
+        case NFAPI_HI_DCI0_REQUEST:
+            assert(ue_tx_socket[ue_idx] > 2);
+            if (sendto(ue_tx_socket[ue_idx], buffer, encoded_size, 0, (const struct sockaddr *) &address_tx_, sizeof(address_tx_)) < 0)
+            {
+                NFAPI_TRACE(NFAPI_TRACE_ERROR, "Send NFAPI_HI_DCI0_REQUEST to OAI UE failed");
+            }
+            else
+            {
+                NFAPI_TRACE(NFAPI_TRACE_INFO , "NFAPI_HI_DCI0_REQ forwarded to UE from UE NEM: %u of cell id %d", id_, id);
+            }
+            break;
+
+        default:
+            NFAPI_TRACE(NFAPI_TRACE_INFO , "Unhandled message at UE NEM: %d message_id: %u", id_, msg.header.message_id);
+            break;
+        }
     }
 }
 
@@ -319,15 +336,13 @@ void Multi_UE_Proxy::pack_and_send_downlink_sfn_sf_msg(uint16_t id, uint16_t sfn
 
     for(int ue_idx = 0; ue_idx < num_ues; ue_idx++)
     {
-        if (ue_tx_socket[ue_idx] < 2)
+        address_tx_.sin_port = htons(3212 + ue_idx * port_delta);
+        assert(ue_tx_socket[ue_idx] > 2);
+        if (sendto(ue_tx_socket[ue_idx], &sfn_sf_info, sizeof(sfn_sf_info), 0, (const struct sockaddr *) &address_tx_, sizeof(address_tx_)) < 0)
         {
-            printf("Ue tx socket not initialized yet (sfn_sf)");
-            continue;
-        }
-        //printf("Sending sfn_sf to ue %d\n", ue_idx);
-        if (send(ue_tx_socket[ue_idx], &sfn_sf, sizeof(sfn_sf), 0) < 0)
-        {
-            printf("(Proxy) Send sfn_sf_tx to OAI UE FAIL Frame: %d,Subframe: %d\n", NFAPI_SFNSF2SFN(sfn_sf), NFAPI_SFNSF2SF(sfn_sf));
+            int sfn = NFAPI_SFNSF2SFN(sfn_sf);
+            int sf = NFAPI_SFNSF2SF(sfn_sf);
+            NFAPI_TRACE(NFAPI_TRACE_DEBUG, "Send sfn_sf_tx to OAI UE FAIL Frame: %d,Subframe: %d from cell id %d\n", sfn, sf, id);
         }
     }
 }
