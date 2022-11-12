@@ -28,6 +28,14 @@ namespace
     Multi_UE_Proxy *instance;
 }
 
+void print_socket_info(struct sockaddr_in socket) {
+        char s[INET_ADDRSTRLEN];
+        inet_ntop(AF_INET, &(socket.sin_addr), s, INET_ADDRSTRLEN);
+        //unsigned int p = ntohs(&(((struct sockaddr_in *)socket)->sin_port));
+        printf("printing socket info...\n");
+        printf("address: %s, port: %d\n", s, ntohs(socket.sin_port));
+}
+
 Multi_UE_PNF::Multi_UE_PNF(int pnf_id, int num_of_ues, std::string enb_ip, std::string proxy_ip)
 {
     num_ues = num_of_ues ;
@@ -181,12 +189,11 @@ void Multi_UE_Proxy::receive_message_from_ue(int ue_idx)
         }
 
         send_bind_addr.sin_family = AF_INET;
-        send_bind_addr.sin_addr.s_addr = inet_addr(pnf_ipaddr.c_str());
+        send_bind_addr.sin_addr.s_addr = INADDR_ANY;
 
         /* Tx port formula: 3212 + ue_idx * port_delta; */
         send_bind_addr.sin_port = htons(3212 + ue_idx * port_delta);
-        /* Save the tx socket in the proxy */
-        ue_tx_socket[ue_idx] = tmp_sock;
+        
         /* Bind */
         if (bind(tmp_sock, (struct sockaddr *)&send_bind_addr, sizeof(struct sockaddr)) == -1)
         {
@@ -298,7 +305,7 @@ void Multi_UE_Proxy::oai_enb_downlink_nfapi_task(int id, void *msg_org)
 
 	    if (ue_tx_socket[ue_idx] < 2)
 	    {
-	    printf("Ue tx socket not initialized yet");
+	        printf("Ue tx socket not initialized yet");
 	        continue;
 	    }
 	    //printf("Sending to ue %d\n", ue_idx);
@@ -321,7 +328,7 @@ void Multi_UE_Proxy::pack_and_send_downlink_sfn_sf_msg(uint16_t id, uint16_t sfn
     {
         if (ue_tx_socket[ue_idx] < 2)
         {
-            printf("Ue tx socket not initialized yet (sfn_sf)");
+            //printf("Ue tx socket not initialized yet (sfn_sf)");
             continue;
         }
         //printf("Sending sfn_sf to ue %d\n", ue_idx);
