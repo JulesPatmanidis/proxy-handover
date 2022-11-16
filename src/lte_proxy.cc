@@ -151,7 +151,7 @@ int Multi_UE_Proxy::init_oai_socket(int tx_port, int rx_port, int ue_idx)
             ue_rx_socket_ = -1;
             return -1;
         }
-        printf("ignore this print %s, %d\n",tx_port);
+        printf("ignore this print %d\n",tx_port);
     }
     return 0;
 }
