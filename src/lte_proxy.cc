@@ -31,8 +31,6 @@ namespace
 void print_socket_info(struct sockaddr_in socket) {
         char s[INET_ADDRSTRLEN];
         inet_ntop(AF_INET, &(socket.sin_addr), s, INET_ADDRSTRLEN);
-        //unsigned int p = ntohs(&(((struct sockaddr_in *)socket)->sin_port));
-        printf("printing socket info...\n");
         printf("address: %s, port: %d\n", s, ntohs(socket.sin_port));
 }
 
@@ -42,7 +40,6 @@ Multi_UE_PNF::Multi_UE_PNF(int pnf_id, int num_of_ues, std::string enb_ip, std::
     id = pnf_id;
 
     configure(enb_ip, proxy_ip);
-
     oai_subframe_init(pnf_id);
 }
 
@@ -126,7 +123,6 @@ void Multi_UE_Proxy::start(softmodem_mode_t softmodem_mode)
 /**
  * @brief Setup Rx/Tx sockets for communication with the given UE
  * 
- * @param addr The ip of the oai UE
  * @param tx_port The transmit port
  * @param rx_port The receive port
  * @param ue_idx The index of the UE
@@ -161,7 +157,7 @@ int Multi_UE_Proxy::init_oai_socket(int tx_port, int rx_port, int ue_idx)
 }
 
 /**
- * @brief Listens to the port of the given UE for messages and calls the handler funtion
+ * @brief Listens for messages from the given UE
  * 
  * @param ue_idx The index of the UE
  */
@@ -176,7 +172,7 @@ void Multi_UE_Proxy::receive_message_from_ue(int ue_idx)
         socklen_t addr_len = sizeof(ue_discovered_addr);
         uint8_t buffer[NFAPI_MAX_PACKED_MESSAGE_SIZE];
 
-        printf("Setting up downlink socket\n");
+        printf("Setting up downlink socket for UE %d\n", ue_idx);
 
         /* Create tx socket */
         if ((tmp_sock = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
@@ -198,14 +194,14 @@ void Multi_UE_Proxy::receive_message_from_ue(int ue_idx)
             return ;
         }
         /* Receive the discovery packet on the tx socket and store the UE address */
-        printf("Waiting for discovery message\n");
+        printf("Waiting for discovery message %d\n", ue_idx);
         len = recvfrom(tmp_sock, buffer, sizeof(buffer), 0, (struct sockaddr *)&ue_discovered_addr, &addr_len);
         if (len == -1)
         {
             printf("Recv failure (%d): %s", errno, strerror(errno));
             return;
         }
-        printf("Got discovery message!\n");
+        printf("Got discovery message! %d\n", ue_idx);
         /* Connect socket to the UE address of the packet received (ue_discovered_addr). */
         if (connect(tmp_sock, (struct sockaddr *)&ue_discovered_addr, addr_len) < 0)
         {
@@ -217,8 +213,7 @@ void Multi_UE_Proxy::receive_message_from_ue(int ue_idx)
         ue_tx_socket[ue_idx] = tmp_sock;
     }
 
-    // Receive messages from ues
-    printf("Receive messages from ue: %d\n", ue_idx);
+    // Receive messages from UE
     char buffer[NFAPI_MAX_PACKED_MESSAGE_SIZE];
     socklen_t addr_len = sizeof(address_rx_);
     int print_count = 0;
@@ -257,7 +252,7 @@ void Multi_UE_Proxy::receive_message_from_ue(int ue_idx)
     }
 }
 
-int print_count2 = 0; // Logging frequency
+int print_count2 = 0; // Logging frequency (only works for 1 UE bc function is run from multiple threads)
 void Multi_UE_Proxy::oai_enb_downlink_nfapi_task(int id, void *msg_org)
 {
     lock_guard_t lock(mutex);
@@ -298,7 +293,6 @@ void Multi_UE_Proxy::oai_enb_downlink_nfapi_task(int id, void *msg_org)
         if (id != eNB_id[ue_idx]) {
             continue;
         }
-        address_tx_.sin_port = htons(3212 + ue_idx * port_delta); // Make that a function argument?
 
 	    if (ue_tx_socket[ue_idx] < 2)
 	    {
@@ -316,11 +310,17 @@ void Multi_UE_Proxy::oai_enb_downlink_nfapi_task(int id, void *msg_org)
         }
         print_count2++;
 
-
     }
 }
 
 int print_count3 = 0;
+/**
+ * @brief Sends sfn_sf message to UE.
+ * TODO: Currently every eNB sends to every UE, change so that each eNB sends to their UEs.
+ * 
+ * @param id eNB id
+ * @param sfn_sf System Frame Number (sfn) and Subframe (sf) info
+ */
 void Multi_UE_Proxy::pack_and_send_downlink_sfn_sf_msg(uint16_t id, uint16_t sfn_sf)
 {
     lock_guard_t lock(mutex);
@@ -334,7 +334,7 @@ void Multi_UE_Proxy::pack_and_send_downlink_sfn_sf_msg(uint16_t id, uint16_t sfn
         if (id != eNB_id[ue_idx]) {
             continue;
         }
-        
+
         if (ue_tx_socket[ue_idx] < 2)
         {
             //printf("Ue tx socket not initialized yet (sfn_sf)");

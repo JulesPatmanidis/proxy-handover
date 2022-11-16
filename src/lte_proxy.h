@@ -89,8 +89,8 @@ private:
     int vnf_p7port = -1;
     int pnf_p7port = -1;
 
-    struct sockaddr_in address_tx_;
-    struct sockaddr_in address_rx_;
+    struct sockaddr_in address_tx_; // temporary struct 
+    struct sockaddr_in address_rx_; // temporary struct
     int ue_tx_socket_ = -1;
     int ue_rx_socket_ = -1;
     int ue_rx_socket[100];
