@@ -23,6 +23,8 @@
 #include "lte_proxy.h"
 #include "nfapi_pnf.h"
 
+#if 0
+
 namespace
 {
     Multi_UE_Proxy *instance;
@@ -362,3 +364,5 @@ void transfer_downstream_sfn_sf_to_proxy(uint16_t id, uint16_t sfn_sf)
 {
     instance->pack_and_send_downlink_sfn_sf_msg(id, sfn_sf);
 }
+
+#endif

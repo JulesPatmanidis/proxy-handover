@@ -43,7 +43,8 @@
 #include <thread>
 #include "proxy.h"
 
-
+#define BASE_RX_UE_PORT 3211
+#define BASE_TX_UE_PORT 3212
 
 
 class Multi_UE_PNF
@@ -54,7 +55,6 @@ public:
     void configure(std::string enb_ip, std::string proxy_ip);
     void start(softmodem_mode_t softmodem_mode);
 private:
-    std::string oai_ue_ipaddr;
     std::string vnf_ipaddr;
     std::string pnf_ipaddr;
     int vnf_p5port = -1;
@@ -67,11 +67,11 @@ private:
 class Multi_UE_Proxy
 {
 public:
-    Multi_UE_Proxy(int num_of_ues, std::vector<std::string> enb_ips, std::string proxy_ip, std::string ue_ip);
+    Multi_UE_Proxy(int num_of_ues, std::vector<std::string> enb_ips, std::string proxy_ip);
     ~Multi_UE_Proxy() = default;
 
-    void configure(std::string ue_ip);
-    int init_oai_socket(const char *addr, int tx_port, int rx_port, int ue_idx);
+    void configure();
+    int init_oai_socket(int tx_port, int rx_port, int ue_idx);
     void oai_enb_downlink_nfapi_task(int id, void *msg);
     void testcode_tx_packet_to_UE( int ue_tx_socket_);
     void pack_and_send_downlink_sfn_sf_msg(uint16_t id, uint16_t sfn_sf);
@@ -83,7 +83,6 @@ public:
     std::vector<Multi_UE_PNF> lte_pnfs;
 private:
     uint16_t eNB_id[100]; // To identify the destination in uplink
-    std::string oai_ue_ipaddr;
     std::string vnf_ipaddr;
     std::string pnf_ipaddr;
     int vnf_p5port = -1;

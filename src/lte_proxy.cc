@@ -71,7 +71,7 @@ void Multi_UE_PNF::start(softmodem_mode_t softmodem_mode)
     }
 }
 
-Multi_UE_Proxy::Multi_UE_Proxy(int num_of_ues, std::vector<std::string> enb_ips, std::string proxy_ip, std::string ue_ip)
+Multi_UE_Proxy::Multi_UE_Proxy(int num_of_ues, std::vector<std::string> enb_ips, std::string proxy_ip)
 {
     assert(instance == NULL);
     instance = this;
@@ -87,19 +87,16 @@ Multi_UE_Proxy::Multi_UE_Proxy(int num_of_ues, std::vector<std::string> enb_ips,
     {
         lte_pnfs.push_back(Multi_UE_PNF(i, num_of_ues, enb_ips[i], proxy_ip));
     }
-    configure(ue_ip);
+    configure();
 }
 
-void Multi_UE_Proxy::configure(std::string ue_ip)
+void Multi_UE_Proxy::configure()
 {
-    oai_ue_ipaddr = ue_ip;
-    std::cout << "OAI-UE is on IP Address " << oai_ue_ipaddr << std::endl;
-
     for (int ue_idx = 0; ue_idx < num_ues; ue_idx++)
     {
-        int oai_rx_ue_port = 3211 + ue_idx * port_delta;
-        int oai_tx_ue_port = 3212 + ue_idx * port_delta;
-        init_oai_socket(oai_ue_ipaddr.c_str(), oai_tx_ue_port, oai_rx_ue_port, ue_idx);
+        int oai_rx_ue_port = BASE_RX_UE_PORT + ue_idx * port_delta;
+        int oai_tx_ue_port = BASE_TX_UE_PORT + ue_idx * port_delta;
+        init_oai_socket(oai_tx_ue_port, oai_rx_ue_port, ue_idx);
     }
 }
 
@@ -135,7 +132,7 @@ void Multi_UE_Proxy::start(softmodem_mode_t softmodem_mode)
  * @param ue_idx The index of the UE
  * @return 0 for successful setup, -1 if errors occured
  */
-int Multi_UE_Proxy::init_oai_socket(const char *addr, int tx_port, int rx_port, int ue_idx)
+int Multi_UE_Proxy::init_oai_socket(int tx_port, int rx_port, int ue_idx)
 {
      {   //Setup Rx Socket
         printf("Setting up rx socket\n");
@@ -158,7 +155,7 @@ int Multi_UE_Proxy::init_oai_socket(const char *addr, int tx_port, int rx_port, 
             ue_rx_socket_ = -1;
             return -1;
         }
-        printf("ignore this print %s, %d\n", addr, tx_port);
+        printf("ignore this print %s, %d\n",tx_port);
     }
     return 0;
 }
@@ -192,7 +189,7 @@ void Multi_UE_Proxy::receive_message_from_ue(int ue_idx)
         send_bind_addr.sin_addr.s_addr = INADDR_ANY;
 
         /* Tx port formula: 3212 + ue_idx * port_delta; */
-        send_bind_addr.sin_port = htons(3212 + ue_idx * port_delta);
+        send_bind_addr.sin_port = htons(BASE_TX_UE_PORT + ue_idx * port_delta);
         
         /* Bind */
         if (bind(tmp_sock, (struct sockaddr *)&send_bind_addr, sizeof(struct sockaddr)) == -1)
@@ -227,7 +224,6 @@ void Multi_UE_Proxy::receive_message_from_ue(int ue_idx)
     int print_count = 0;
     while(true)
     {
-        //NFAPI_TRACE(NFAPI_TRACE_INFO, "(Proxy) Receive from: ue_idx: %d, address: %s", ue_idx, (sockaddr *)&address_rx_); // Error string to sockaddr
         int buflen = recvfrom(ue_rx_socket[ue_idx], buffer, sizeof(buffer), 0, (sockaddr *)&address_rx_, &addr_len);
         if (buflen == -1)
         {
@@ -261,6 +257,7 @@ void Multi_UE_Proxy::receive_message_from_ue(int ue_idx)
     }
 }
 
+int print_count2 = 0; // Logging frequency
 void Multi_UE_Proxy::oai_enb_downlink_nfapi_task(int id, void *msg_org)
 {
     lock_guard_t lock(mutex);
@@ -305,17 +302,25 @@ void Multi_UE_Proxy::oai_enb_downlink_nfapi_task(int id, void *msg_org)
 
 	    if (ue_tx_socket[ue_idx] < 2)
 	    {
-	        printf("Ue tx socket not initialized yet");
+	        //printf("Ue tx socket not initialized yet\n");
 	        continue;
 	    }
-	    //printf("Sending to ue %d\n", ue_idx);
+	    
 	    if (send(ue_tx_socket[ue_idx], buffer, encoded_size, 0) < 0)
 	    {
-	        printf("error sending message to ue");
+	        printf("error sending message to ue\n");
 	    }
+
+        if (print_count2 % 1000 == 0) {
+            printf("Sent message %d from ENB: %d to UE: %d\n", print_count2, id, ue_idx);
+        }
+        print_count2++;
+
+
     }
 }
 
+int print_count3 = 0;
 void Multi_UE_Proxy::pack_and_send_downlink_sfn_sf_msg(uint16_t id, uint16_t sfn_sf)
 {
     lock_guard_t lock(mutex);
@@ -326,16 +331,25 @@ void Multi_UE_Proxy::pack_and_send_downlink_sfn_sf_msg(uint16_t id, uint16_t sfn
 
     for(int ue_idx = 0; ue_idx < num_ues; ue_idx++)
     {
+        if (id != eNB_id[ue_idx]) {
+            continue;
+        }
+        
         if (ue_tx_socket[ue_idx] < 2)
         {
             //printf("Ue tx socket not initialized yet (sfn_sf)");
             continue;
         }
-        //printf("Sending sfn_sf to ue %d\n", ue_idx);
+        
         if (send(ue_tx_socket[ue_idx], &sfn_sf, sizeof(sfn_sf), 0) < 0)
         {
             printf("(Proxy) Send sfn_sf_tx to OAI UE FAIL Frame: %d,Subframe: %d, ENB: %d\n", NFAPI_SFNSF2SFN(sfn_sf), NFAPI_SFNSF2SF(sfn_sf), id);
         }
+
+        if (print_count3 % 1000 == 0) {
+            printf("Sent sfnsf %d from ENB: %d to UE: %d\n", print_count3, id, ue_idx);
+        }
+        print_count3++;
     }
 }
 
