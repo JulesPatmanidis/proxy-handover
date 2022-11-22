@@ -325,9 +325,9 @@ void Multi_UE_Proxy::pack_and_send_downlink_sfn_sf_msg(uint16_t id, uint16_t sfn
 {
     lock_guard_t lock(mutex);
 
-    // sfn_sf_info_t sfn_sf_info;
-    // sfn_sf_info.phy_id = id;
-    // sfn_sf_info.sfn_sf = sfn_sf;
+    sfn_sf_info_t sfn_sf_info;
+    sfn_sf_info.phy_id = id;
+    sfn_sf_info.sfn_sf = sfn_sf;
 
     for(int ue_idx = 0; ue_idx < num_ues; ue_idx++)
     {
@@ -341,7 +341,7 @@ void Multi_UE_Proxy::pack_and_send_downlink_sfn_sf_msg(uint16_t id, uint16_t sfn
             continue;
         }
         
-        if (send(ue_tx_socket[ue_idx], &sfn_sf, sizeof(sfn_sf), 0) < 0)
+        if (send(ue_tx_socket[ue_idx], &sfn_sf_info, sizeof(sfn_sf_info), 0) < 0)
         {
             printf("(Proxy) Send sfn_sf_tx to OAI UE FAIL Frame: %d,Subframe: %d, ENB: %d\n", NFAPI_SFNSF2SFN(sfn_sf), NFAPI_SFNSF2SF(sfn_sf), id);
         }
