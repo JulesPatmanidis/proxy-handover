@@ -220,6 +220,7 @@ void Multi_UE_Proxy::receive_message_from_ue(int ue_idx)
     while(true)
     {
         int buflen = recvfrom(ue_rx_socket[ue_idx], buffer, sizeof(buffer), 0, (sockaddr *)&address_rx_, &addr_len);
+        //printf("got message from ue %d\n", ue_idx);
         if (buflen == -1)
         {
             NFAPI_TRACE(NFAPI_TRACE_ERROR, "Recvfrom failed %s", strerror(errno));
@@ -329,12 +330,9 @@ void Multi_UE_Proxy::pack_and_send_downlink_sfn_sf_msg(uint16_t id, uint16_t sfn
     sfn_sf_info.phy_id = id;
     sfn_sf_info.sfn_sf = sfn_sf;
 
+    /* Each eNB send sfn_sf to ALL UEs (even those not connected to it). This is intentional. */
     for(int ue_idx = 0; ue_idx < num_ues; ue_idx++)
     {
-        if (id != eNB_id[ue_idx]) {
-            continue;
-        }
-
         if (ue_tx_socket[ue_idx] < 2)
         {
             //printf("Ue tx socket not initialized yet (sfn_sf)");
