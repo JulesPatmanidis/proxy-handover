@@ -211,7 +211,14 @@ void Multi_UE_Proxy::receive_message_from_ue(int ue_idx)
 
         /* Save the tx socket for the ue in the proxy */
         ue_tx_socket[ue_idx] = tmp_sock;
+
+        /* Print client network info */
+        char *ip_client = inet_ntoa(ue_discovered_addr.sin_addr);
+        uint16_t port_client = htons(ue_discovered_addr.sin_port);
+        printf("UE %d downlink socket connected to %s:%d\n", ue_idx, ip_client, (int) port_client);
     }
+
+     
 
     // Receive messages from UE
     char buffer[NFAPI_MAX_PACKED_MESSAGE_SIZE];
