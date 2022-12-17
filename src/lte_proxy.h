@@ -70,6 +70,7 @@ public:
     Multi_UE_Proxy(int num_of_ues, std::vector<std::string> enb_ips, std::string proxy_ip);
     ~Multi_UE_Proxy() = default;
 
+    void distribute_ues(int num_of_ues);
     void configure();
     int init_oai_socket(int tx_port, int rx_port, int ue_idx);
     void oai_enb_downlink_nfapi_task(int id, void *msg);

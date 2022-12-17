@@ -72,10 +72,9 @@ Multi_UE_Proxy::Multi_UE_Proxy(int num_of_ues, std::vector<std::string> enb_ips,
 {
     assert(instance == NULL);
     instance = this;
-    for (int ue_idx = 0; ue_idx < num_of_ues; ue_idx++)
-    {
-        eNB_id[ue_idx] = 0;
-    }
+    
+    distribute_ues(num_of_ues);
+    
 
     num_ues = num_of_ues;
     int num_of_enbs = enb_ips.size();
@@ -85,6 +84,36 @@ Multi_UE_Proxy::Multi_UE_Proxy(int num_of_ues, std::vector<std::string> enb_ips,
         lte_pnfs.push_back(Multi_UE_PNF(i, num_of_ues, enb_ips[i], proxy_ip));
     }
     configure();
+}
+
+void Multi_UE_Proxy::distribute_ues(int num_of_ues)
+{   
+    // Set default eNB to 0
+    for (int ue_idx = 0; ue_idx < num_of_ues; ue_idx++)
+    {
+        eNB_id[ue_idx] = 0;
+    }
+
+    char *filename = " ";
+    FILE *fptr;
+    
+    if ((fptr = fopen(filename, "r")) == NULL) {
+        printf("DEBUG: Error opening %s file, ues assigned to eNB 0\n", filename);
+        return;
+    }
+
+    int line_count = 0;
+    int ue_id, enb_id;
+    char line[256];
+    
+    while (fgets(line, sizeof(line), fptr)) {
+        line_count++;
+
+        sscanf(line, "%d,%d", &ue_id, &enb_id);
+        eNB_id[ue_id] = enb_id;
+        printf("Assigned UE: %d to eNB: %d\n", ue_id, enb_id);
+    }
+
 }
 
 void Multi_UE_Proxy::configure()
@@ -121,7 +150,7 @@ void Multi_UE_Proxy::start(softmodem_mode_t softmodem_mode)
 }
 
 /**
- * @brief Setup Rx/Tx sockets for communication with the given UE
+ * @brief Setup Rx/Tx sockets for communication with the given UE (called by proxy)
  * 
  * @param tx_port The transmit port
  * @param rx_port The receive port
@@ -234,7 +263,7 @@ void Multi_UE_Proxy::receive_message_from_ue(int ue_idx)
             return ;
         }
         if (print_count % 1000 == 0) {
-            printf("Got message %d from ue %d\n", print_count, ue_idx);
+            //printf("Got message %d from ue %d\n", print_count, ue_idx);
         }
         print_count++;
         if (buflen == 4)
@@ -252,6 +281,7 @@ void Multi_UE_Proxy::receive_message_from_ue(int ue_idx)
                 return ;
             }
             uint16_t sfn_sf = nfapi_get_sfnsf(buffer, buflen);
+            if (eNB_id[ue_idx] != header.phy_id) printf("DEBUG: Ue %d changed enb id %d -> %d\n",ue_idx, eNB_id[ue_idx], header.phy_id);
             eNB_id[ue_idx] = header.phy_id;
             NFAPI_TRACE(NFAPI_TRACE_INFO , "(Proxy) Proxy has received %d uplink message from OAI UE at socket. Frame: %d, Subframe: %d",
                     header.message_id, NFAPI_SFNSF2SFN(sfn_sf), NFAPI_SFNSF2SF(sfn_sf));
@@ -261,6 +291,10 @@ void Multi_UE_Proxy::receive_message_from_ue(int ue_idx)
 }
 
 int print_count2 = 0; // Logging frequency (only works for 1 UE bc function is run from multiple threads)
+
+/**
+ * called per PNF
+*/
 void Multi_UE_Proxy::oai_enb_downlink_nfapi_task(int id, void *msg_org)
 {
     lock_guard_t lock(mutex);
