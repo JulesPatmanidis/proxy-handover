@@ -252,7 +252,7 @@ void Multi_UE_Proxy::receive_message_from_ue(int ue_idx)
     // Receive messages from UE
     char buffer[NFAPI_MAX_PACKED_MESSAGE_SIZE];
     socklen_t addr_len = sizeof(address_rx_);
-    int print_count = 0;
+
     while(true)
     {
         int buflen = recvfrom(ue_rx_socket[ue_idx], buffer, sizeof(buffer), 0, (sockaddr *)&address_rx_, &addr_len);
@@ -262,10 +262,7 @@ void Multi_UE_Proxy::receive_message_from_ue(int ue_idx)
             NFAPI_TRACE(NFAPI_TRACE_ERROR, "Recvfrom failed %s", strerror(errno));
             return ;
         }
-        if (print_count % 1000 == 0) {
-            //printf("Got message %d from ue %d\n", print_count, ue_idx);
-        }
-        print_count++;
+    
         if (buflen == 4)
         {
             //NFAPI_TRACE(NFAPI_TRACE_INFO , "Dummy frame");
@@ -290,8 +287,8 @@ void Multi_UE_Proxy::receive_message_from_ue(int ue_idx)
     }
 }
 
-int print_count2 = 0; // Logging frequency (only works for 1 UE bc function is run from multiple threads)
-
+int print_count2v1 = 0;
+int print_count2v2 = 0;
 /**
  * called per PNF
 */
@@ -347,15 +344,19 @@ void Multi_UE_Proxy::oai_enb_downlink_nfapi_task(int id, void *msg_org)
 	        printf("error sending message to ue\n");
 	    }
 
-        if (print_count2 % 1000 == 0) {
-            printf("Sent message %d from ENB: %d to UE: %d\n", print_count2, id, ue_idx);
+        if (print_count2v1 % 1000 == 0 && ue_idx == 0) {
+            printf("Sent message %d from ENB: %d to UE: %d\n", print_count2v1, id, ue_idx);
         }
-        print_count2++;
+        print_count2v1++;
+        if (print_count2v2 % 1000 == 0 && ue_idx == 1) {
+            printf("Sent message %d from ENB: %d to UE: %d\n", print_count2v2, id, ue_idx);
+        }
+        print_count2v2++;
 
     }
 }
 
-int print_count3 = 0;
+
 /**
  * @brief Sends sfn_sf message to UE.
  * TODO: Currently every eNB sends to every UE, change so that each eNB sends to their UEs.
@@ -384,14 +385,15 @@ void Multi_UE_Proxy::pack_and_send_downlink_sfn_sf_msg(uint16_t id, uint16_t sfn
         {
             printf("(Proxy) Send sfn_sf_tx to OAI UE FAIL Frame: %d,Subframe: %d, ENB: %d\n", NFAPI_SFNSF2SFN(sfn_sf), NFAPI_SFNSF2SF(sfn_sf), id);
         }
-
-        if (print_count3 % 1000 == 0) {
-            printf("Sent sfnsf %d from ENB: %d to UE: %d\n", print_count3, id, ue_idx);
-        }
-        print_count3++;
     }
 }
 
+/**
+ * @brief Sends a downling msg to the UEs
+ * 
+ * @param id EnB ID
+ * @param msg Message
+ */
 void transfer_downstream_nfapi_msg_to_proxy(uint16_t id, void *msg)
 {
     instance->oai_enb_downlink_nfapi_task(id, msg);
