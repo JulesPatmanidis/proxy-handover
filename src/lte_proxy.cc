@@ -94,7 +94,7 @@ void Multi_UE_Proxy::distribute_ues(int num_of_ues)
         eNB_id[ue_idx] = 0;
     }
 
-    const char *filename = " ";
+    const char *filename = "ue_distribution.txt";
     FILE *fptr;
     
     if ((fptr = fopen(filename, "r")) == NULL) {
