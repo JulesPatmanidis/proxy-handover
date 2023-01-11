@@ -4254,9 +4254,11 @@ static uint16_t sfn_slot_counter(uint16_t *sfn, uint16_t *slot)
 
 uint16_t sf_slot_tick;
 uint16_t sf0_sf1_tick; // Keeps track if both EnBs have sent their messages
+uint16_t pnfs_done_sf = 0;
 pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t cond_sf_slot = PTHREAD_COND_INITIALIZER;
 pthread_cond_t cond_sf0_sf1 = PTHREAD_COND_INITIALIZER;
+pthread_cond_t cond_pnfs_done_sf = PTHREAD_COND_INITIALIZER;
 
 /**
  * @brief Aggregates and sends messages from the UEs to the EnBs on every subframe and makes sure the PNFs are synchronised after sending.
@@ -4272,6 +4274,7 @@ void *oai_subframe_task(void *context)
     bool are_queues_empty = true;
     softmodem_mode_t softmodem_mode = ((struct oai_task_args*)context)->softmodem_mode;
     int id = ((struct oai_task_args*)context)->node_id;
+    int num_enbs = ((struct oai_task_args *)context)->num_enbs;
     uint16_t sf_tick_1st = (id == 0) ? LTE_PROXY_0_DONE : LTE_PROXY_1_DONE;
     NFAPI_TRACE(NFAPI_TRACE_INFO, "Subframe Task thread");
     while (true)
@@ -4302,7 +4305,33 @@ void *oai_subframe_task(void *context)
         are_queues_empty = dequeue_ue_msgs(id, subframe_msgs, sfn_sf_tx);
 
         oai_subframe_aggregate_messages(id, subframe_msgs);
-
+        if (softmodem_mode == SOFTMODEM_LTE_HANDOVER_N_ENB)
+        {
+            if (pthread_mutex_lock(&lock) != 0)
+            {
+                errExit("failed to lock mutex");
+            }
+            pnfs_done_sf++;
+            if (pnfs_done_sf == num_enbs)
+            {
+                if (pthread_cond_broadcast(&cond_pnfs_done_sf) != 0)
+                {
+                    errExit("failed to broadcast on the condition");
+                }
+            }
+            else
+            {
+                if (pthread_cond_wait(&cond_pnfs_done_sf, &lock) != 0)
+                {
+                    errExit("failed to wait on the condition");
+                }
+                pnfs_done_sf = 0;
+            }
+            if (pthread_mutex_unlock(&lock) != 0)
+            {
+                errExit("failed to unlock mutex");
+            }
+        }
         if (softmodem_mode == SOFTMODEM_LTE_HANDOVER)
         {
             if (pthread_mutex_lock(&lock) != 0)

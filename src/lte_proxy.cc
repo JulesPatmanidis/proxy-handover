@@ -34,11 +34,12 @@ void print_socket_info(struct sockaddr_in socket) {
         printf("address: %s, port: %d\n", s, ntohs(socket.sin_port));
 }
 
-Multi_UE_PNF::Multi_UE_PNF(int pnf_id, int num_of_ues, std::string enb_ip, std::string proxy_ip)
+Multi_UE_PNF::Multi_UE_PNF(int pnf_id, int num_of_ues, int num_of_enbs, std::string enb_ip, std::string proxy_ip)
 {
-    num_ues = num_of_ues ;
+    num_ues = num_of_ues;
+    num_enbs = num_of_enbs;
     id = pnf_id;
-
+    
     configure(enb_ip, proxy_ip);
     oai_subframe_init(pnf_id);
 }
@@ -58,7 +59,7 @@ void Multi_UE_PNF::start(softmodem_mode_t softmodem_mode)
     vnf_p7port = 50011 + id * enb_port_delta;
     pnf_p7port = 50010 + id * enb_port_delta;
 
-    struct oai_task_args args {softmodem_mode, id};
+    struct oai_task_args args {softmodem_mode, id, num_enbs};
 
     configure_nfapi_pnf(id, vnf_ipaddr.c_str(), vnf_p5port, pnf_ipaddr.c_str(), pnf_p7port, vnf_p7port);
 
@@ -81,7 +82,7 @@ Multi_UE_Proxy::Multi_UE_Proxy(int num_of_ues, std::vector<std::string> enb_ips,
 
     for (int i = 0; i < num_of_enbs; i++)
     {
-        lte_pnfs.push_back(Multi_UE_PNF(i, num_of_ues, enb_ips[i], proxy_ip));
+        lte_pnfs.push_back(Multi_UE_PNF(i, num_of_ues, num_of_enbs, enb_ips[i], proxy_ip));
     }
     configure();
 }

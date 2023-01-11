@@ -172,7 +172,9 @@ int main(int argc, char *argv[])
         break;
     case 5:
         if (softmodem_mode == SOFTMODEM_LTE_HANDOVER_N_ENB)
-        {
+        {   
+            // Set enbs appropriately
+            enbs = ipaddrs.size() - 2;
             for (int i = 0; i < enbs; i++) {
                 enb_ipaddrs.push_back(ipaddrs[i]);
             }

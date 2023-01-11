@@ -37,6 +37,7 @@ struct oai_task_args
 {
  softmodem_mode_t softmodem_mode;
  int node_id;
+ int num_enbs;
 };
 
 #ifdef __cplusplus

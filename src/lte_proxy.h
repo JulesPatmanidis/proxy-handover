@@ -50,7 +50,7 @@
 class Multi_UE_PNF
 {
 public:
-    Multi_UE_PNF(int id, int num_of_ues, std::string enb_ip, std::string proxy_ip);
+    Multi_UE_PNF(int id, int num_of_ues, int num_of_enbs, std::string enb_ip, std::string proxy_ip);
     ~Multi_UE_PNF() = default;
     void configure(std::string enb_ip, std::string proxy_ip);
     void start(softmodem_mode_t softmodem_mode);
@@ -61,6 +61,7 @@ private:
     int vnf_p7port = -1;
     int pnf_p7port = -1;
     int id;
+    int num_enbs;
     const int enb_port_delta = 200;
 };
 
