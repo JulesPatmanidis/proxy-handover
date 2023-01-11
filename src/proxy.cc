@@ -92,9 +92,9 @@ int main(int argc, char *argv[])
             softmodem_mode = SOFTMODEM_LTE_HANDOVER_N_ENB;
             if (--argc == 0 || !is_numeric(*++argv))
             {
-                try_help("Expected an integer after --lte_handover_n_enb");
+                //try_help("Expected an integer after --lte_handover_n_enb");
             }
-            enbs = std::stoi(*argv);
+            //enbs = std::stoi(*argv);
             continue;
         }
         if (arg == "--nr")
