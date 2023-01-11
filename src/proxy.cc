@@ -35,7 +35,7 @@ static void show_usage();
 static bool is_numeric(const std::string&);
 static void remove_log_file();
 static bool is_ipaddress(const std::string &);
-static std::vector<std::string> parse_enb_ips(char *filename);
+static std::vector<std::string> parse_enb_ips(std::string filename);
 
 constexpr int DEFAULT_MAX_SECONDS = 10 * 60; // maximum run time
 
