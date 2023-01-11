@@ -316,4 +316,6 @@ std::vector<std::string> parse_enb_ips(std::string filename)
         }
     }
     ips_file.close();
+
+    return {" "};
 }
