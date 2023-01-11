@@ -55,6 +55,7 @@ int main(int argc, char *argv[])
     program_name = basename(argv[0]);
 
     int ues = 1;
+    int enbs = 1;
     int max_seconds = DEFAULT_MAX_SECONDS;
     softmodem_mode_t softmodem_mode = SOFTMODEM_LTE;
     std::vector<std::string> ipaddrs;
@@ -84,6 +85,16 @@ int main(int argc, char *argv[])
         if (arg == "--lte_handover")
         {
             softmodem_mode = SOFTMODEM_LTE_HANDOVER;
+            continue;
+        }
+        if (arg == "--lte_handover_n_enb")
+        {
+            softmodem_mode = SOFTMODEM_LTE_HANDOVER_N_ENB;
+            if (--argc == 0 || !is_numeric(*++argv))
+            {
+                try_help("Expected an integer after --lte_handover_n_enb");
+            }
+            enbs = std::stoi(*argv);
             continue;
         }
         if (arg == "--nr")
@@ -159,6 +170,23 @@ int main(int argc, char *argv[])
             try_help("Wrong number of IP addresses");
         }
         break;
+    case 5:
+        if (softmodem_mode == SOFTMODEM_LTE_HANDOVER_N_ENB)
+        {
+            for (int i = 0; i < enbs; i++) {
+                enb_ipaddrs.push_back(ipaddrs[i]);
+            }
+            
+            //enb_ipaddrs.push_back(ipaddrs[1]);
+            //enb_ipaddrs.push_back(ipaddrs[2]);
+            proxy_ipaddr = ipaddrs[enbs];
+            ue_ipaddr = ipaddrs[enbs + 1];
+        }
+        else
+        {
+            try_help("Wrong number of IP addresses (this is 3 enb handover configuration)");
+        }
+        break;
     default:
         try_help("Invalid number of IP addresses");
     }
@@ -189,6 +217,12 @@ int main(int argc, char *argv[])
         }
         break;
     case SOFTMODEM_LTE_HANDOVER:
+        {
+            Multi_UE_Proxy lte_proxy(ues, enb_ipaddrs, proxy_ipaddr);
+            lte_proxy.start(softmodem_mode);
+        }
+        break;
+    case SOFTMODEM_LTE_HANDOVER_N_ENB:
         {
             Multi_UE_Proxy lte_proxy(ues, enb_ipaddrs, proxy_ipaddr);
             lte_proxy.start(softmodem_mode);
