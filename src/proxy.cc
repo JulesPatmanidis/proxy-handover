@@ -174,6 +174,7 @@ int main(int argc, char *argv[])
         if (softmodem_mode == SOFTMODEM_LTE_HANDOVER_N_ENB)
         {   
             // Set enbs appropriately
+            parse_enb_ips("enb_ips.conf");
             enbs = ipaddrs.size() - 2;
             for (int i = 0; i < enbs; i++) {
                 enb_ipaddrs.push_back(ipaddrs[i]);
@@ -296,4 +297,27 @@ bool is_ipaddress(const std::string &s)
 {
     sockaddr_in sa;
     return 1 == inet_pton(AF_INET, s.c_str(), &sa.sin_addr);
+}
+
+std::vector<std::string> parse_enb_ips(char *filename)
+{
+    int IP_STRING_LENGTH = 16;
+
+    FILE *fptr;
+    char line[IP_STRING_LENGTH];
+    if ((fptr = fopen(filename, "r")) == NULL)
+    {
+        std::cout << "Error!";
+        printf("DEBUG: Error! opening %s file\n", filename);
+    }
+    while (fgets(line, sizeof(line), fptr))
+    {
+        if (is_ipaddress(line))
+        {
+            std::cout << "OKAY";
+        } else {
+            std::cout << "NOT OKAY";
+        }
+    }
+    fclose(fptr);
 }
