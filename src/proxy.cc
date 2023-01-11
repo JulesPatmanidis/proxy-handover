@@ -20,6 +20,7 @@
 
 #include <sys/stat.h>
 #include <sstream>
+#include <fstream>
 #include <sys/resource.h>
 #include "proxy.h"
 #include "lte_proxy.h"
@@ -300,18 +301,12 @@ bool is_ipaddress(const std::string &s)
     return 1 == inet_pton(AF_INET, s.c_str(), &sa.sin_addr);
 }
 
-std::vector<std::string> parse_enb_ips(char *filename)
+std::vector<std::string> parse_enb_ips(std::string filename)
 {
-    int IP_STRING_LENGTH = 16;
-
-    FILE *fptr;
-    char line[IP_STRING_LENGTH];
-    if ((fptr = fopen(filename, "r")) == NULL)
-    {
-        std::cout << "Error!";
-        printf("DEBUG: Error! opening %s file\n", filename);
-    }
-    while (fgets(line, sizeof(line), fptr))
+    std::ifstream ips_file(filename);
+    std::string line;
+    
+    while (std::getline(ips_file, line))
     {
         if (is_ipaddress(line))
         {
@@ -320,5 +315,5 @@ std::vector<std::string> parse_enb_ips(char *filename)
             std::cout << "NOT OKAY";
         }
     }
-    fclose(fptr);
+    ips_file.close();
 }
