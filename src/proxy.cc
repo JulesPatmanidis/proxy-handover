@@ -59,8 +59,10 @@ int main(int argc, char *argv[])
     int ues = 1;
     int enbs = 1;
     int max_seconds = DEFAULT_MAX_SECONDS;
+    std::string filepath;
     softmodem_mode_t softmodem_mode = SOFTMODEM_LTE;
     std::vector<std::string> ipaddrs;
+    std::vector<std::string> enb_ipaddrs;
 
     while (--argc > 0)
     {
@@ -92,11 +94,8 @@ int main(int argc, char *argv[])
         if (arg == "--lte_handover_n_enb")
         {
             softmodem_mode = SOFTMODEM_LTE_HANDOVER_N_ENB;
-            if (--argc == 0 || !is_numeric(*++argv))
-            {
-                //try_help("Expected an integer after --lte_handover_n_enb");
-            }
-            //enbs = std::stoi(*argv);
+            filepath = *++argv;
+            --argc;
             continue;
         }
         if (arg == "--nr")
@@ -129,7 +128,7 @@ int main(int argc, char *argv[])
     std::string ue_ipaddr = "127.0.0.1";
     std::string proxy_ipaddr = "127.0.0.1";
     std::string gnb_ipaddr = "127.0.0.2";
-    std::vector<std::string> enb_ipaddrs;
+
     switch (ipaddrs.size())
     {
     case 0:
@@ -141,6 +140,17 @@ int main(int argc, char *argv[])
         }
         else
             enb_ipaddrs.push_back("127.0.0.1");
+        break;
+    case 1:
+        if (softmodem_mode == SOFTMODEM_LTE_HANDOVER_N_ENB)
+        {
+            enb_ipaddrs = parse_enb_ips(filepath);
+            proxy_ipaddr = ipaddrs[0];
+        }
+        else
+        {
+            try_help("Wrong number of IP addresses");
+        }
         break;
     case 3:
         if (softmodem_mode != SOFTMODEM_LTE && softmodem_mode != SOFTMODEM_NR)
@@ -170,26 +180,6 @@ int main(int argc, char *argv[])
         else
         {
             try_help("Wrong number of IP addresses");
-        }
-        break;
-    case 5:
-        if (softmodem_mode == SOFTMODEM_LTE_HANDOVER_N_ENB)
-        {   
-            // Set enbs appropriately
-            parse_enb_ips("enb_ips.conf");
-            enbs = ipaddrs.size() - 2;
-            for (int i = 0; i < enbs; i++) {
-                enb_ipaddrs.push_back(ipaddrs[i]);
-            }
-            
-            //enb_ipaddrs.push_back(ipaddrs[1]);
-            //enb_ipaddrs.push_back(ipaddrs[2]);
-            proxy_ipaddr = ipaddrs[enbs];
-            ue_ipaddr = ipaddrs[enbs + 1];
-        }
-        else
-        {
-            try_help("Wrong number of IP addresses (this is 3 enb handover configuration)");
         }
         break;
     default:
@@ -305,17 +295,23 @@ std::vector<std::string> parse_enb_ips(std::string filename)
 {
     std::ifstream ips_file(filename);
     std::string line;
-    
+    std::vector<std::string> enb_ips;
+
+    if (!ips_file.good()) {
+        std::cout << "Failed to open " << filename << ", file might not exist";
+        abort();
+    }
+
     while (std::getline(ips_file, line))
     {
         if (is_ipaddress(line))
         {
-            std::cout << "OKAY";
+            enb_ips.push_back(line);
         } else {
-            std::cout << "NOT OKAY";
+            std::cout << "Invalid IP: " << line << "\n";
         }
     }
     ips_file.close();
 
-    return {" "};
+    return enb_ips;
 }
