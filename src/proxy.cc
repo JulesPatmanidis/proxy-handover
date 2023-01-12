@@ -57,7 +57,6 @@ int main(int argc, char *argv[])
     program_name = basename(argv[0]);
 
     int ues = 1;
-    int enbs = 1;
     int max_seconds = DEFAULT_MAX_SECONDS;
     std::string filepath;
     softmodem_mode_t softmodem_mode = SOFTMODEM_LTE;
