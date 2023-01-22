@@ -4314,6 +4314,7 @@ void *oai_subframe_task(void *context)
             pnfs_done_sf++;
             if (pnfs_done_sf == num_enbs)
             {
+                pnfs_done_sf = 0;
                 if (pthread_cond_broadcast(&cond_pnfs_done_sf) != 0)
                 {
                     errExit("failed to broadcast on the condition");
@@ -4325,7 +4326,6 @@ void *oai_subframe_task(void *context)
                 {
                     errExit("failed to wait on the condition");
                 }
-                pnfs_done_sf = 0;
             }
             if (pthread_mutex_unlock(&lock) != 0)
             {

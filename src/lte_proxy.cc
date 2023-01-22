@@ -280,7 +280,7 @@ void Multi_UE_Proxy::receive_message_from_ue(int ue_idx)
             }
             uint16_t sfn_sf = nfapi_get_sfnsf(buffer, buflen);
             if (eNB_id[ue_idx] != header.phy_id) printf("DEBUG: Ue %d changed enb id %d -> %d\n",ue_idx, eNB_id[ue_idx], header.phy_id);
-            eNB_id[ue_idx] = header.phy_id;
+            eNB_id[ue_idx] = header.phy_id; // Proxy follows the phy_id of the UE message
             NFAPI_TRACE(NFAPI_TRACE_INFO , "(Proxy) Proxy has received %d uplink message from OAI UE at socket. Frame: %d, Subframe: %d",
                     header.message_id, NFAPI_SFNSF2SFN(sfn_sf), NFAPI_SFNSF2SF(sfn_sf));
         }
@@ -360,7 +360,6 @@ void Multi_UE_Proxy::oai_enb_downlink_nfapi_task(int id, void *msg_org)
 
 /**
  * @brief Sends sfn_sf message to UE.
- * TODO: Currently every eNB sends to every UE, change so that each eNB sends to their UEs.
  * 
  * @param id eNB id
  * @param sfn_sf System Frame Number (sfn) and Subframe (sf) info
@@ -373,7 +372,7 @@ void Multi_UE_Proxy::pack_and_send_downlink_sfn_sf_msg(uint16_t id, uint16_t sfn
     sfn_sf_info.phy_id = id;
     sfn_sf_info.sfn_sf = sfn_sf;
 
-    /* Each eNB send sfn_sf to ALL UEs (even those not connected to it). This is intentional. */
+    /* Each eNB send sfn_sf to ALL UEs (even those not connected to it) */
     for(int ue_idx = 0; ue_idx < num_ues; ue_idx++)
     {
         if (ue_tx_socket[ue_idx] < 2)
