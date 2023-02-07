@@ -193,6 +193,7 @@ int Multi_UE_Proxy::init_oai_socket(int tx_port, int rx_port, int ue_idx)
  */
 void Multi_UE_Proxy::receive_message_from_ue(int ue_idx)
 {
+
     // Setup tx socket first
     {
         int tmp_sock;
@@ -231,7 +232,8 @@ void Multi_UE_Proxy::receive_message_from_ue(int ue_idx)
             printf("Recv failure (%d): %s", errno, strerror(errno));
             return;
         }
-        printf("Got discovery message! %d\n", ue_idx);
+
+        printf("Got discovery message %d, len  %d\n", ue_idx, len);
         /* Connect socket to the UE address of the packet received (ue_discovered_addr). */
         if (connect(tmp_sock, (struct sockaddr *)&ue_discovered_addr, addr_len) < 0)
         {
@@ -347,12 +349,14 @@ void Multi_UE_Proxy::oai_enb_downlink_nfapi_task(int id, void *msg_org)
 
         if (print_count2v1 % 1000 == 0 && ue_idx == 0) {
             printf("Sent message %d from ENB: %d to UE: %d\n", print_count2v1, id, ue_idx);
+            print_count2v1++;
         }
-        print_count2v1++;
+        
         if (print_count2v2 % 1000 == 0 && ue_idx == 1) {
             printf("Sent message %d from ENB: %d to UE: %d\n", print_count2v2, id, ue_idx);
+            print_count2v2++;
         }
-        print_count2v2++;
+        
 
     }
 }
