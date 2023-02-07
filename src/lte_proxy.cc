@@ -122,7 +122,7 @@ void Multi_UE_Proxy::configure()
     for (int ue_idx = 0; ue_idx < num_ues; ue_idx++)
     {
         int oai_rx_ue_port = BASE_RX_UE_PORT + ue_idx * port_delta;
-        int oai_tx_ue_port = BASE_TX_UE_PORT + ue_idx * port_delta;
+        //int oai_tx_ue_port = BASE_TX_UE_PORT + ue_idx * port_delta;
         init_oai_socket(oai_rx_ue_port, ue_idx);
     }
 }
