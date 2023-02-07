@@ -236,7 +236,7 @@ void Multi_UE_Proxy::receive_message_from_ue(int ue_idx)
             eNB_id[ue_idx] = (uint16_t) buffer[0];
             printf("Got discovery message for UE %d, set start at eNB %d\n", ue_idx, eNB_id[ue_idx]);
         } else {
-            printf("UE %d sent malformed discovery message\n", ue_idx, eNB_id[ue_idx]);
+            printf("UE %d sent malformed discovery message\n", ue_idx);
         }
 
         /* Connect socket to the UE address of the packet received (ue_discovered_addr). */
