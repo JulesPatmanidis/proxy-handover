@@ -74,7 +74,7 @@ Multi_UE_Proxy::Multi_UE_Proxy(int num_of_ues, std::vector<std::string> enb_ips,
     assert(instance == NULL);
     instance = this;
     
-    distribute_ues(num_of_ues);
+    //distribute_ues(num_of_ues);
     
 
     num_ues = num_of_ues;
@@ -123,7 +123,7 @@ void Multi_UE_Proxy::configure()
     {
         int oai_rx_ue_port = BASE_RX_UE_PORT + ue_idx * port_delta;
         int oai_tx_ue_port = BASE_TX_UE_PORT + ue_idx * port_delta;
-        init_oai_socket(oai_tx_ue_port, oai_rx_ue_port, ue_idx);
+        init_oai_socket(oai_rx_ue_port, ue_idx);
     }
 }
 
@@ -158,7 +158,7 @@ void Multi_UE_Proxy::start(softmodem_mode_t softmodem_mode)
  * @param ue_idx The index of the UE
  * @return 0 for successful setup, -1 if errors occured
  */
-int Multi_UE_Proxy::init_oai_socket(int tx_port, int rx_port, int ue_idx)
+int Multi_UE_Proxy::init_oai_socket(int rx_port, int ue_idx)
 {
      {   //Setup Rx Socket
         printf("Setting up rx socket\n");
@@ -181,7 +181,6 @@ int Multi_UE_Proxy::init_oai_socket(int tx_port, int rx_port, int ue_idx)
             ue_rx_socket_ = -1;
             return -1;
         }
-        printf("ignore this print %d\n",tx_port);
     }
     return 0;
 }
@@ -233,7 +232,13 @@ void Multi_UE_Proxy::receive_message_from_ue(int ue_idx)
             return;
         }
 
-        printf("Got discovery message %d, len  %d\n", ue_idx, len);
+        if (buffer[1] == 255 && buffer[0] > 0) {
+            eNB_id[ue_idx] = (uint16_t) buffer[0];
+            printf("Got discovery message for UE %d, set start at eNB %d\n", ue_idx, eNB_id[ue_idx]);
+        } else {
+            printf("UE %d sent malformed discovery message\n", ue_idx, eNB_id[ue_idx]);
+        }
+
         /* Connect socket to the UE address of the packet received (ue_discovered_addr). */
         if (connect(tmp_sock, (struct sockaddr *)&ue_discovered_addr, addr_len) < 0)
         {

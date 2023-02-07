@@ -73,7 +73,7 @@ public:
 
     void distribute_ues(int num_of_ues);
     void configure();
-    int init_oai_socket(int tx_port, int rx_port, int ue_idx);
+    int init_oai_socket(int rx_port, int ue_idx);
     void oai_enb_downlink_nfapi_task(int id, void *msg);
     void testcode_tx_packet_to_UE( int ue_tx_socket_);
     void pack_and_send_downlink_sfn_sf_msg(uint16_t id, uint16_t sfn_sf);
