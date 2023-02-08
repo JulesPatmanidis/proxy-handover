@@ -28,6 +28,7 @@ namespace
     Multi_UE_Proxy *instance;
 }
 
+/* Helper function for debugging */
 void print_socket_info(struct sockaddr_in socket) {
         char s[INET_ADDRSTRLEN];
         inet_ntop(AF_INET, &(socket.sin_addr), s, INET_ADDRSTRLEN);
@@ -73,9 +74,6 @@ Multi_UE_Proxy::Multi_UE_Proxy(int num_of_ues, std::vector<std::string> enb_ips,
 {
     assert(instance == NULL);
     instance = this;
-    
-    //distribute_ues(num_of_ues);
-    
 
     num_ues = num_of_ues;
     int num_of_enbs = enb_ips.size();
@@ -87,42 +85,12 @@ Multi_UE_Proxy::Multi_UE_Proxy(int num_of_ues, std::vector<std::string> enb_ips,
     configure();
 }
 
-void Multi_UE_Proxy::distribute_ues(int num_of_ues)
-{   
-    // Set default eNB to 0
-    for (int ue_idx = 0; ue_idx < num_of_ues; ue_idx++)
-    {
-        eNB_id[ue_idx] = 0;
-    }
-
-    const char *filename = "ue_distribution.txt";
-    FILE *fptr;
-    
-    if ((fptr = fopen(filename, "r")) == NULL) {
-        printf("DEBUG: Error opening %s file, ues assigned to eNB 0\n", filename);
-        return;
-    }
-
-    int line_count = 0;
-    int ue_id, enb_id;
-    char line[256];
-    
-    while (fgets(line, sizeof(line), fptr)) {
-        line_count++;
-
-        sscanf(line, "%d,%d", &ue_id, &enb_id);
-        eNB_id[ue_id] = enb_id;
-        printf("Assigned UE: %d to eNB: %d\n", ue_id, enb_id);
-    }
-
-}
 
 void Multi_UE_Proxy::configure()
 {
     for (int ue_idx = 0; ue_idx < num_ues; ue_idx++)
     {
         int oai_rx_ue_port = BASE_RX_UE_PORT + ue_idx * port_delta;
-        //int oai_tx_ue_port = BASE_TX_UE_PORT + ue_idx * port_delta;
         init_oai_socket(oai_rx_ue_port, ue_idx);
     }
 }
@@ -223,6 +191,7 @@ void Multi_UE_Proxy::receive_message_from_ue(int ue_idx)
             printf("Error binding downlink socket for UE %d: %s", ue_idx, strerror(errno));
             return ;
         }
+
         /* Receive the discovery packet on the tx socket and store the UE address */
         printf("Waiting for discovery message %d\n", ue_idx);
         len = recvfrom(tmp_sock, buffer, sizeof(buffer), 0, (struct sockaddr *)&ue_discovered_addr, &addr_len);
@@ -232,6 +201,7 @@ void Multi_UE_Proxy::receive_message_from_ue(int ue_idx)
             return;
         }
 
+        /* Check discovery message contents, should be (0xFF00 | start_enb_id) */
         if (buffer[1] == 255 && buffer[0] > 0) {
             eNB_id[ue_idx] = (uint16_t) buffer[0];
             printf("Got discovery message for UE %d, set start at eNB %d\n", ue_idx, eNB_id[ue_idx]);
@@ -254,8 +224,6 @@ void Multi_UE_Proxy::receive_message_from_ue(int ue_idx)
         uint16_t port_client = htons(ue_discovered_addr.sin_port);
         printf("UE %d downlink socket connected to %s:%d\n", ue_idx, ip_client, (int) port_client);
     }
-
-     
 
     // Receive messages from UE
     char buffer[NFAPI_MAX_PACKED_MESSAGE_SIZE];
@@ -352,6 +320,7 @@ void Multi_UE_Proxy::oai_enb_downlink_nfapi_task(int id, void *msg_org)
 	        printf("error sending message to ue\n");
 	    }
 
+        // Temporary logs to track message routing from enb to ue (works for up to 2 ues)
         if (print_count2v1 % 1000 == 0 && ue_idx == 0) {
             printf("Sent message %d from ENB: %d to UE: %d\n", print_count2v1, id, ue_idx);
             print_count2v1++;
