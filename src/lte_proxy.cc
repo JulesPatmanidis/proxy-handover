@@ -22,6 +22,19 @@
 #include <sstream>
 #include "lte_proxy.h"
 #include "nfapi_pnf.h"
+#include <time.h>
+#include <string>
+#include <fstream>
+#include <ios>
+
+typedef union nfapi_message_struct
+{
+    nfapi_p7_message_header_t header;
+    nfapi_dl_config_request_t dl_config_req;
+    nfapi_tx_request_t tx_req;
+    nfapi_hi_dci0_request_t hi_dci0_req;
+    nfapi_ul_config_request_t ul_config_req;
+} nfapi_message_struct_t;
 
 namespace
 {
@@ -201,14 +214,10 @@ void Multi_UE_Proxy::receive_message_from_ue(int ue_idx)
             return;
         }
 
-        /* Check discovery message contents, should be (0xFF00 | start_enb_id) */
-        if (buffer[1] == 255 && buffer[0] > 0) {
-            eNB_id[ue_idx] = (uint16_t) buffer[0];
-            printf("Got discovery message for UE %d, set start at eNB %d\n", ue_idx, eNB_id[ue_idx]);
-        } else {
-            printf("UE %d sent malformed discovery message\n", ue_idx);
-        }
-
+        uint16_t new_source_enb = (uint16_t) buffer[0];
+        eNB_id[ue_idx] = new_source_enb;
+        printf("Got discovery message for UE %d, set start at eNB %d\n", ue_idx, eNB_id[ue_idx]);
+        
         /* Connect socket to the UE address of the packet received (ue_discovered_addr). */
         if (connect(tmp_sock, (struct sockaddr *)&ue_discovered_addr, addr_len) < 0)
         {
@@ -218,7 +227,7 @@ void Multi_UE_Proxy::receive_message_from_ue(int ue_idx)
 
         /* Save the tx socket for the ue in the proxy */
         ue_tx_socket[ue_idx] = tmp_sock;
-
+        
         /* Print client network info */
         char *ip_client = inet_ntoa(ue_discovered_addr.sin_addr);
         uint16_t port_client = htons(ue_discovered_addr.sin_port);
@@ -238,12 +247,16 @@ void Multi_UE_Proxy::receive_message_from_ue(int ue_idx)
             NFAPI_TRACE(NFAPI_TRACE_ERROR, "Recvfrom failed %s", strerror(errno));
             return ;
         }
-    
         if (buflen == 4)
         {
             //NFAPI_TRACE(NFAPI_TRACE_INFO , "Dummy frame");
             continue;
 
+        }
+        else if (buflen == 8)
+        {
+            printf("Handover update recieved\n");
+            continue;
         }
         else
         {
@@ -254,7 +267,7 @@ void Multi_UE_Proxy::receive_message_from_ue(int ue_idx)
                 return ;
             }
             uint16_t sfn_sf = nfapi_get_sfnsf(buffer, buflen);
-            if (eNB_id[ue_idx] != header.phy_id) printf("DEBUG: Ue %d changed enb id %d -> %d\n",ue_idx, eNB_id[ue_idx], header.phy_id);
+            if (eNB_id[ue_idx] != header.phy_id) printf("Ue %d changed enb id %d -> %d\n",ue_idx, eNB_id[ue_idx], header.phy_id);
             eNB_id[ue_idx] = header.phy_id; // Proxy follows the phy_id of the UE message
             NFAPI_TRACE(NFAPI_TRACE_INFO , "(Proxy) Proxy has received %d uplink message from OAI UE at socket. Frame: %d, Subframe: %d",
                     header.message_id, NFAPI_SFNSF2SFN(sfn_sf), NFAPI_SFNSF2SF(sfn_sf));
@@ -263,8 +276,8 @@ void Multi_UE_Proxy::receive_message_from_ue(int ue_idx)
     }
 }
 
-int print_count2v1 = 0;
-int print_count2v2 = 0;
+//int print_count2v1 = 0;
+//int print_count2v2 = 0;
 /**
  * called per PNF
 */
@@ -288,14 +301,7 @@ void Multi_UE_Proxy::oai_enb_downlink_nfapi_task(int id, void *msg_org)
         return;
     }
 
-    union
-    {
-        nfapi_p7_message_header_t header;
-        nfapi_dl_config_request_t dl_config_req;
-        nfapi_tx_request_t tx_req;
-        nfapi_hi_dci0_request_t hi_dci0_req;
-        nfapi_ul_config_request_t ul_config_req;
-    } msg;
+    nfapi_message_struct_t msg;
 
     if (nfapi_p7_message_unpack((void *)buffer, encoded_size, &msg, sizeof(msg), NULL) != 0)
     {
@@ -321,15 +327,15 @@ void Multi_UE_Proxy::oai_enb_downlink_nfapi_task(int id, void *msg_org)
 	    }
 
         // Temporary logs to track message routing from enb to ue (works for up to 2 ues)
-        if (print_count2v1 % 1000 == 0 && ue_idx == 0) {
-            printf("Sent message %d from ENB: %d to UE: %d\n", print_count2v1, id, ue_idx);
-            print_count2v1++;
-        }
-        
-        if (print_count2v2 % 1000 == 0 && ue_idx == 1) {
-            printf("Sent message %d from ENB: %d to UE: %d\n", print_count2v2, id, ue_idx);
-            print_count2v2++;
-        }
+        // if (print_count2v1 % 1000 == 0 && ue_idx == 0) {
+        //     printf("Sent message %d from ENB: %d to UE: %d\n", print_count2v1, id, ue_idx);
+            
+        // }
+        // print_count2v1++;
+        // if (print_count2v2 % 1000 == 0 && ue_idx == 1) {
+        //     printf("Sent message %d from ENB: %d to UE: %d\n", print_count2v2, id, ue_idx);
+        // }
+        // print_count2v2++;
         
 
     }
